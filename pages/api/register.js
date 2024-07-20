@@ -28,6 +28,7 @@ export default async (req, res) => {
       username,
       email,
       password: hashedPassword,
+      balance: 0, // Set initial balance to 0
     });
 
     return res.status(201).json({ message: 'User registered' });

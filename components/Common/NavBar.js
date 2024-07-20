@@ -1,40 +1,52 @@
-import React, { useState } from 'react';
-import { AppBar, Toolbar, Typography, Button, IconButton, Dialog, DialogContent, DialogActions, Menu, MenuItem } from '@mui/material';
-import CasinoIcon from '@mui/icons-material/Casino';
+import React, { useState, useEffect } from 'react';
+import { AppBar, Toolbar, Typography, Button, IconButton, Menu } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import Register from '../Home/Register';
-import Login from '../Home/Login';
-import jwt from 'jsonwebtoken';
-import { useRouter } from 'next/router';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { useRouter } from 'next/router';
+import { useTheme } from '@mui/material/styles';
+import BalanceDisplay from './BalanceDisplay';
+import AuthDialog from './AuthDialog';
+import MenuItems from './MenuItems';
+import jwt from 'jsonwebtoken';
+import axios from 'axios';
 
-const NavBar = ({ user, setUser, setToken }) => {
+const NavBar = ({ user, setUser, setToken, updateBalanceAfterPurchase }) => {
+  const theme = useTheme();
   const [isRegister, setIsRegister] = useState(false);
   const [open, setOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [balance, setBalance] = useState(null);
   const router = useRouter();
 
-  const handleOpen = () => {
-    setOpen(true);
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => setOpen(false);
+  const toggleForm = () => setIsRegister(!isRegister);
+  const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
+  const handleMenuClose = () => setAnchorEl(null);
+
+  const fetchBalance = async (userId) => {
+    try {
+      const response = await axios.get(`/api/balance?userId=${userId}`);
+      return Math.round(response.data.balance * 100) / 100;
+    } catch (error) {
+      console.error("Error fetching balance:", error);
+      return null;
+    }
   };
 
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  const toggleForm = () => {
-    setIsRegister(!isRegister);
-  };
-
-  const handleLogin = (token) => {
+  const handleLogin = async (token) => {
     const decoded = jwt.decode(token);
     if (decoded) {
+      const fetchedBalance = await fetchBalance(decoded.userId);
       setUser({ id: decoded.userId, username: decoded.username });
       setToken(token);
-      localStorage.setItem('token', token); // Save token to local storage
-      localStorage.setItem('userId', decoded.userId); // Save user ID to local storage
-      handleClose(); // Close the dialog
-      router.push('/main'); // Redirect to main.js page
+      localStorage.setItem('token', token);
+      localStorage.setItem('userId', decoded.userId);
+      setBalance(fetchedBalance);
+      handleClose();
+      router.push('/main');
+    } else {
+      console.error("Failed to decode JWT token");
     }
   };
 
@@ -42,24 +54,18 @@ const NavBar = ({ user, setUser, setToken }) => {
     localStorage.removeItem('token');
     setUser(null);
     setToken('');
-    router.push('/'); // Redirect to index.js page
+    setBalance(null);
+    router.push('/');
   };
 
-  const handleMenuClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleMenuItemClick = (path) => {
-    router.push(path);
-    handleMenuClose();
-  };
+  useEffect(() => {
+    if (user) {
+      fetchBalance(user.id).then(setBalance);
+    }
+  }, [user]);
 
   return (
-    <AppBar position="static" color="secondary">
+    <AppBar position="static" color="secondary" sx={{ boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)' }}>
       <Toolbar>
         <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={handleMenuClick}>
           <MenuIcon />
@@ -69,42 +75,27 @@ const NavBar = ({ user, setUser, setToken }) => {
           open={Boolean(anchorEl)}
           onClose={handleMenuClose}
         >
-          <MenuItem onClick={() => handleMenuItemClick('/main')}>Market</MenuItem>
-          <MenuItem onClick={() => handleMenuItemClick('/transactions')}>Transactions</MenuItem>
-          <MenuItem onClick={() => handleMenuItemClick('/withdraw')}>Withdraw</MenuItem>
-          <MenuItem onClick={() => handleMenuItemClick('/profile')}>Profile</MenuItem>
+          <MenuItems handleMenuClose={handleMenuClose} />
         </Menu>
-        <Typography variant="h6" sx={{ flexGrow: 1, color: 'primary.main' }}>
+        <Typography variant="h8" sx={{ flexGrow: 1, color: 'primary.main' }}>
           Degen Futures
         </Typography>
         {user ? (
           <>
-            <Typography variant="h6" sx={{ color: 'primary.main', mr: 2 }}>
-              {user.username}
-            </Typography>
-            <IconButton color="inherit" onClick={handleLogout}>
-              <LogoutIcon />
+            <BalanceDisplay balance={balance} username={user.username} theme={theme} />
+            <IconButton color="inherit" onClick={handleLogout} sx={{ marginLeft: 'auto' }}>
+              <LogoutIcon sx={{ color: theme.palette.primary.main }} />
             </IconButton>
           </>
         ) : (
-          <>
-            <Button color="inherit" onClick={handleOpen}>
-              {isRegister ? 'Register' : 'Login'}
-            </Button>
-            <Dialog open={open} onClose={handleClose}>
-              <DialogContent>
-                {isRegister ? <Register /> : <Login onLogin={handleLogin} />}
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={toggleForm} sx={{ color: 'primary.main' }}>
-                  {isRegister ? 'Have an account? Login' : "Don't have an account? Register"}
-                </Button>
-                <Button onClick={handleClose} color="inherit">
-                  Close
-                </Button>
-              </DialogActions>
-            </Dialog>
-          </>
+          <AuthDialog
+            open={open}
+            handleOpen={handleOpen}
+            handleClose={handleClose}
+            isRegister={isRegister}
+            toggleForm={toggleForm}
+            handleLogin={handleLogin}
+          />
         )}
       </Toolbar>
     </AppBar>

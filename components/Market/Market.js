@@ -5,7 +5,7 @@ import MarketTitle from './MarketTitle';
 import TeamList from './TeamList';
 import Confirm from './Confirm';
 
-const Market = ({ sortCriteria, setSortCriteria }) => {
+const Market = ({ sortCriteria, setSortCriteria, updateBalanceAfterPurchase }) => {
   const [teams, setTeams] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -76,7 +76,7 @@ const Market = ({ sortCriteria, setSortCriteria }) => {
       if (!userId) {
         throw new Error('User ID is missing');
       }
-
+  
       const res = await axios.post('/api/buy', { teamId, userId });
       if (res.status === 200) {
         // Update the local state to reflect the new shares and price
@@ -88,15 +88,17 @@ const Market = ({ sortCriteria, setSortCriteria }) => {
         }));
         // Refresh portfolio
         await fetchPortfolio();
+        // Update the balance in the NavBar
+        await updateBalanceAfterPurchase();
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleSell = async (teamId) => {
+   const handleSell = async (teamId) => {
     try {
-      const userId = localStorage.getItem('userId'); // Ensure user ID is stored in local storage
+      const userId = localStorage.getItem('userId');
       if (!userId) {
         throw new Error('User ID is missing');
       }
@@ -112,6 +114,8 @@ const Market = ({ sortCriteria, setSortCriteria }) => {
         }));
         // Refresh portfolio
         await fetchPortfolio();
+        // Update the balance in the NavBar
+        await updateBalanceAfterPurchase();
       }
     } catch (err) {
       console.error(err);
